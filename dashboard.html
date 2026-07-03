@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics SEPLAN</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 p-6 min-h-screen">
+
+  <div class="max-w-5xl mx-auto space-y-6">
+    <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+      <div>
+        <h1 class="text-2xl font-black text-white">Indicadores de Postagens</h1>
+        <p class="text-xs text-slate-400">Consolidado Financeiro Direto do Google Sheets</p>
+      </div>
+      <a href="index.html" class="text-xs bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-medium py-2 px-4 rounded-xl transition">← Voltar ao Painel</a>
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+      <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+        <h3 class="text-sm font-bold text-white">Prestação de Contas Trimestral</h3>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="bg-slate-950 text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-800">
+              <th class="p-4">Grupo / Unidade</th>
+              <th class="p-4 text-right">T1 (Jan-Mar)</th>
+              <th class="p-4 text-right">T2 (Abr-Jun)</th>
+              <th class="p-4 text-right">T3 (Jul-Set)</th>
+              <th class="p-4 text-right">T4 (Out-Dez)</th>
+            </tr>
+          </thead>
+          <tbody id="corpoTabela" class="divide-y divide-slate-800/60">
+            <tr>
+              <td colspan="5" class="p-8 text-center text-slate-500 font-medium animate-pulse">Buscando indicadores em tempo real na planilha...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl">
+      <h3 class="text-sm font-bold text-white mb-4">Análise Gráfica Trimestral</h3>
+      <div class="h-64">
+        <canvas id="chartSeplan"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ⚠️ INSIRA A MESMA URL DO APPS SCRIPT AQUI
+    const WEB_APP_URL = "SUA_URL_DA_IMPLANTACAO_AQUI";
+
+    window.onload = async () => {
+      try {
+        const res = await fetch(WEB_APP_URL);
+        const data = await res.json();
+        
+        const corpo = document.getElementById('corpoTabela');
+        corpo.innerHTML = '';
+        
+        const labels = data.grupos;
+        const t1Data = [];
+        const t2Data = [];
+
+        labels.forEach(g => {
+          const valores = data.consolidado[g];
+          t1Data.push(valores.T1);
+          t2Data.push(valores.T2);
+
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-850/40 transition";
+          tr.innerHTML = `
+            <td class="p-4 font-semibold text-slate-300">${g}</td>
+            <td class="p-4 text-right font-mono text-emerald-400">R$ ${valores.T1.toFixed(2).replace('.',',')}</td>
+            <td class="p-4 text-right font-mono text-indigo-400">R$ ${valores.T2.toFixed(2).replace('.',',')}</td>
+            <td class="p-4 text-right font-mono text-slate-500">R$ ${valores.T3.toFixed(2).replace('.',',')}</td>
+            <td class="p-4 text-right font-mono text-slate-500">R$ ${valores.T4.toFixed(2).replace('.',',')}</td>
+          `;
+          corpo.appendChild(tr);
+        });
+
+        // Renderiza Gráfico Dinâmico
+        new Chart(document.getElementById('chartSeplan').getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: '1º Trimestre', data: t1Data, backgroundColor: '#10b981' },
+              { label: '2º Trimestre', data: t2Data, backgroundColor: '#6366f1' }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+            scales: {
+              x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false } },
+              y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } }
+            }
+          }
+        });
+
+      } catch (err) {
+        document.getElementById('corpoTabela').innerHTML = `<tr><td colspan="5" class="p-8 text-center text-rose-500">Falha ao coletar dados: ${err.message}</td></tr>`;
+      }
+    };
+  </script>
+</body>
+</html>

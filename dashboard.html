@@ -3,111 +3,251 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Analytics SEPLAN</title>
+  <title>📊 Dashboard - Correios IRR</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    * { font-family: 'Inter', sans-serif; }
+    .bg-dark { background: #0a0a0f; }
+    .bg-card { background: #12121e; }
+    .border-card { border-color: #2a2a3a; }
+    .glow { box-shadow: 0 0 40px rgba(99, 102, 241, 0.1); }
+    .stat-card { transition: all 0.3s; }
+    .stat-card:hover { transform: translateY(-2px); }
+    .badge-grupo { 
+      background: #1a1a2e; 
+      color: #94a3b8; 
+      padding: 4px 12px; 
+      border-radius: 20px; 
+      font-size: 10px;
+    }
+    .animate-pulse-slow { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 p-6 min-h-screen">
+<body class="bg-dark text-slate-200 min-h-screen">
 
-  <div class="max-w-5xl mx-auto space-y-6">
-    <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+  <div class="max-w-7xl mx-auto p-4 md:p-6">
+    <!-- HEADER -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
       <div>
-        <h1 class="text-2xl font-black text-white">Indicadores de Postagens</h1>
-        <p class="text-xs text-slate-400">Consolidado Financeiro Direto do Google Sheets</p>
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center">
+            <i class="fas fa-chart-pie text-indigo-400 text-lg"></i>
+          </div>
+          <div>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">Dashboard de Gastos</h1>
+            <p class="text-xs text-slate-500">Consolidado trimestral por grupo</p>
+          </div>
+        </div>
       </div>
-      <a href="index.html" class="text-xs bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-medium py-2 px-4 rounded-xl transition">← Voltar ao Painel</a>
+      <div class="flex gap-2">
+        <a href="index.html" class="px-4 py-2 rounded-xl bg-card border border-card hover:border-indigo-500/50 text-sm text-slate-400 hover:text-white transition flex items-center gap-2">
+          <i class="fas fa-plus"></i> Novo
+        </a>
+        <a href="busca.html" class="px-4 py-2 rounded-xl bg-card border border-card hover:border-indigo-500/50 text-sm text-slate-400 hover:text-white transition flex items-center gap-2">
+          <i class="fas fa-search"></i> Buscar
+        </a>
+      </div>
     </div>
 
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-      <div class="p-4 bg-slate-900/50 border-b border-slate-800">
-        <h3 class="text-sm font-bold text-white">Prestação de Contas Trimestral</h3>
+    <!-- CARDS RESUMO -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-card border border-card rounded-xl p-5 stat-card">
+        <p class="text-xs text-slate-400 uppercase tracking-wider">Total Gasto</p>
+        <p id="totalGeral" class="text-2xl font-bold text-white mt-1">R$ 0,00</p>
+      </div>
+      <div class="bg-card border border-card rounded-xl p-5 stat-card">
+        <p class="text-xs text-slate-400 uppercase tracking-wider">1º Trimestre</p>
+        <p id="trim1" class="text-2xl font-bold text-emerald-400 mt-1">R$ 0,00</p>
+      </div>
+      <div class="bg-card border border-card rounded-xl p-5 stat-card">
+        <p class="text-xs text-slate-400 uppercase tracking-wider">2º Trimestre</p>
+        <p id="trim2" class="text-2xl font-bold text-indigo-400 mt-1">R$ 0,00</p>
+      </div>
+      <div class="bg-card border border-card rounded-xl p-5 stat-card">
+        <p class="text-xs text-slate-400 uppercase tracking-wider">Grupos Ativos</p>
+        <p id="gruposAtivos" class="text-2xl font-bold text-white mt-1">0</p>
+      </div>
+    </div>
+
+    <!-- GRÁFICO TRIMESTRAL -->
+    <div class="bg-card border border-card rounded-2xl p-6 glow mb-8">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+          <i class="fas fa-chart-bar text-indigo-400"></i> Comparativo Trimestral
+        </h3>
+        <span class="badge-grupo">Por grupo</span>
+      </div>
+      <div class="h-72">
+        <canvas id="chartTrimestral"></canvas>
+      </div>
+    </div>
+
+    <!-- TABELA DETALHADA -->
+    <div class="bg-card border border-card rounded-2xl overflow-hidden">
+      <div class="p-5 border-b border-card flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+          <i class="fas fa-table text-indigo-400"></i> Detalhamento por Grupo
+        </h3>
+        <span class="text-xs text-slate-500"><i class="far fa-calendar-alt mr-1"></i> Ano 2026</span>
       </div>
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs">
+        <table class="w-full text-sm">
           <thead>
-            <tr class="bg-slate-950 text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-800">
-              <th class="p-4">Grupo / Unidade</th>
-              <th class="p-4 text-right">T1 (Jan-Mar)</th>
-              <th class="p-4 text-right">T2 (Abr-Jun)</th>
-              <th class="p-4 text-right">T3 (Jul-Set)</th>
-              <th class="p-4 text-right">T4 (Out-Dez)</th>
+            <tr class="bg-slate-900/50 text-slate-400 text-xs uppercase tracking-wider border-b border-card">
+              <th class="px-5 py-4 text-left">Grupo</th>
+              <th class="px-5 py-4 text-right">1º Trim</th>
+              <th class="px-5 py-4 text-right">2º Trim</th>
+              <th class="px-5 py-4 text-right">3º Trim</th>
+              <th class="px-5 py-4 text-right">4º Trim</th>
+              <th class="px-5 py-4 text-right font-bold text-white">Total</th>
             </tr>
           </thead>
-          <tbody id="corpoTabela" class="divide-y divide-slate-800/60">
+          <tbody id="corpoTabela" class="divide-y divide-slate-800/50">
             <tr>
-              <td colspan="5" class="p-8 text-center text-slate-500 font-medium animate-pulse">Buscando indicadores em tempo real na planilha...</td>
+              <td colspan="6" class="px-5 py-12 text-center text-slate-500">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Carregando dados...
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
-
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl">
-      <h3 class="text-sm font-bold text-white mb-4">Análise Gráfica Trimestral</h3>
-      <div class="h-64">
-        <canvas id="chartSeplan"></canvas>
-      </div>
-    </div>
   </div>
 
   <script>
-    // ⚠️ INSIRA A MESMA URL DO APPS SCRIPT AQUI
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwaW0w4Qq51QtADMdwJrVlNlb0QzGn_s14EKvmYiFK4p6ncY3npY7FaenzCZXW5_lzwHw/exec";
 
-    window.onload = async () => {
+    // Formatação de moeda
+    function formatMoney(value) {
+      return 'R$ ' + value.toFixed(2).replace('.', ',');
+    }
+
+    // ============================================
+    // CARREGAR DADOS DO DASHBOARD
+    // ============================================
+    async function carregarDashboard() {
       try {
-        const res = await fetch(WEB_APP_URL);
-        const data = await res.json();
+        const response = await fetch(`${WEB_APP_URL}?acao=dashboard&ano=2026`);
+        const data = await response.json();
         
+        if (!data.sucesso) {
+          throw new Error(data.mensagem);
+        }
+
+        // Atualiza cards resumo
+        document.getElementById('totalGeral').textContent = formatMoney(data.totalGeral);
+        document.getElementById('trim1').textContent = formatMoney(data.totalTrimestral[0]);
+        document.getElementById('trim2').textContent = formatMoney(data.totalTrimestral[1]);
+        
+        const gruposComDados = Object.keys(data.consolidado).filter(g => data.consolidado[g].total > 0);
+        document.getElementById('gruposAtivos').textContent = gruposComDados.length;
+
+        // Tabela
         const corpo = document.getElementById('corpoTabela');
         corpo.innerHTML = '';
-        
-        const labels = data.grupos;
-        const t1Data = [];
-        const t2Data = [];
 
-        labels.forEach(g => {
-          const valores = data.consolidado[g];
-          t1Data.push(valores.T1);
-          t2Data.push(valores.T2);
+        // Ordena por total (maior primeiro)
+        const gruposOrdenados = Object.keys(data.consolidado)
+          .filter(g => data.consolidado[g].total > 0)
+          .sort((a, b) => data.consolidado[b].total - data.consolidado[a].total);
 
-          const tr = document.createElement('tr');
-          tr.className = "hover:bg-slate-850/40 transition";
-          tr.innerHTML = `
-            <td class="p-4 font-semibold text-slate-300">${g}</td>
-            <td class="p-4 text-right font-mono text-emerald-400">R$ ${valores.T1.toFixed(2).replace('.',',')}</td>
-            <td class="p-4 text-right font-mono text-indigo-400">R$ ${valores.T2.toFixed(2).replace('.',',')}</td>
-            <td class="p-4 text-right font-mono text-slate-500">R$ ${valores.T3.toFixed(2).replace('.',',')}</td>
-            <td class="p-4 text-right font-mono text-slate-500">R$ ${valores.T4.toFixed(2).replace('.',',')}</td>
+        if (gruposOrdenados.length === 0) {
+          corpo.innerHTML = `
+            <tr>
+              <td colspan="6" class="px-5 py-12 text-center text-slate-500">
+                <i class="fas fa-inbox text-2xl block mb-2"></i>
+                Nenhum registro encontrado
+              </td>
+            </tr>
           `;
-          corpo.appendChild(tr);
-        });
+        } else {
+          gruposOrdenados.forEach(g => {
+            const valores = data.consolidado[g];
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-900/30 transition';
+            tr.innerHTML = `
+              <td class="px-5 py-4 font-medium text-white">${g}</td>
+              <td class="px-5 py-4 text-right text-emerald-400 font-mono">${formatMoney(valores.trimestral[0])}</td>
+              <td class="px-5 py-4 text-right text-indigo-400 font-mono">${formatMoney(valores.trimestral[1])}</td>
+              <td class="px-5 py-4 text-right text-slate-400 font-mono">${formatMoney(valores.trimestral[2])}</td>
+              <td class="px-5 py-4 text-right text-slate-400 font-mono">${formatMoney(valores.trimestral[3])}</td>
+              <td class="px-5 py-4 text-right font-bold text-white font-mono">${formatMoney(valores.total)}</td>
+            `;
+            corpo.appendChild(tr);
+          });
+        }
 
-        // Renderiza Gráfico Dinâmico
-        new Chart(document.getElementById('chartSeplan').getContext('2d'), {
+        // Gráfico
+        const ctx = document.getElementById('chartTrimestral').getContext('2d');
+        const labels = gruposOrdenados;
+        const datasets = [
+          { label: '1º Trimestre', data: gruposOrdenados.map(g => data.consolidado[g].trimestral[0]), backgroundColor: '#10b981' },
+          { label: '2º Trimestre', data: gruposOrdenados.map(g => data.consolidado[g].trimestral[1]), backgroundColor: '#6366f1' },
+          { label: '3º Trimestre', data: gruposOrdenados.map(g => data.consolidado[g].trimestral[2]), backgroundColor: '#f59e0b' },
+          { label: '4º Trimestre', data: gruposOrdenados.map(g => data.consolidado[g].trimestral[3]), backgroundColor: '#8b5cf6' }
+        ];
+
+        new Chart(ctx, {
           type: 'bar',
-          data: {
-            labels: labels,
-            datasets: [
-              { label: '1º Trimestre', data: t1Data, backgroundColor: '#10b981' },
-              { label: '2º Trimestre', data: t2Data, backgroundColor: '#6366f1' }
-            ]
-          },
+          data: { labels, datasets },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+            plugins: {
+              legend: { 
+                labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12, padding: 15 }
+              }
+            },
             scales: {
-              x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false } },
-              y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } }
+              x: { 
+                ticks: { color: '#64748b', font: { size: 9, weight: '500' }, maxRotation: 45 },
+                grid: { display: false }
+              },
+              y: { 
+                ticks: { 
+                  color: '#64748b', 
+                  font: { size: 10 },
+                  callback: value => 'R$ ' + value.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                },
+                grid: { color: '#1e293b' }
+              }
             }
           }
         });
 
       } catch (err) {
-        document.getElementById('corpoTabela').innerHTML = `<tr><td colspan="5" class="p-8 text-center text-rose-500">Falha ao coletar dados: ${err.message}</td></tr>`;
+        console.error('Erro:', err);
+        document.getElementById('corpoTabela').innerHTML = `
+          <tr>
+            <td colspan="6" class="px-5 py-12 text-center text-rose-400">
+              <i class="fas fa-exclamation-triangle mr-2"></i>
+              Erro ao carregar dados: ${err.message}
+            </td>
+          </tr>
+        `;
       }
-    };
+    }
+
+    // ============================================
+    // CARREGAR DADOS DOS GRÁFICOS
+    // ============================================
+    async function carregarGraficos() {
+      try {
+        const response = await fetch(`${WEB_APP_URL}?acao=graficos&ano=2026`);
+        const data = await response.json();
+        console.log('Dados dos gráficos:', data);
+      } catch (err) {
+        console.error('Erro ao carregar gráficos:', err);
+      }
+    }
+
+    // Inicializa
+    carregarDashboard();
+    carregarGraficos();
   </script>
 </body>
 </html>

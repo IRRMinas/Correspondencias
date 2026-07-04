@@ -25,6 +25,12 @@
     }
     .animate-pulse-slow { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    .sticky-col { position: sticky; left: 0; background: #12121e; z-index: 10; }
+    thead .sticky-col { z-index: 20; }
+    .view-tab { transition: all 0.2s; }
+    .view-tab.active-tab { background: #6366f1; color: white; }
+    .view-tab:not(.active-tab) { background: #1a1a2e; color: #94a3b8; }
+    .view-tab:not(.active-tab):hover { background: #23233a; color: #e2e8f0; }
   </style>
 </head>
 <body class="bg-dark text-slate-200 min-h-screen">
@@ -116,14 +122,57 @@
         </table>
       </div>
     </div>
+
+    <!-- DETALHAMENTO MENSAL (TABELA DINÂMICA) -->
+    <div class="bg-card border border-card rounded-2xl overflow-hidden mb-8">
+      <div class="p-5 border-b border-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+          <i class="fas fa-calendar-days text-indigo-400"></i> Detalhamento Mensal
+        </h3>
+        <div class="flex flex-wrap items-center gap-2">
+          <input id="filtroGrupoMensal" type="text" placeholder="Filtrar grupo..."
+            class="bg-slate-900 border border-card text-slate-200 text-xs rounded-lg px-3 py-2 w-40 focus:outline-none focus:border-indigo-500">
+          <button data-view="grupo" class="view-tab active-tab text-xs font-semibold px-3 py-2 rounded-lg">
+            <i class="fas fa-table-cells mr-1"></i> Grupo × Mês
+          </button>
+          <button data-view="mes" class="view-tab text-xs font-semibold px-3 py-2 rounded-lg">
+            <i class="fas fa-repeat mr-1"></i> Mês × Grupo
+          </button>
+        </div>
+      </div>
+      <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+        <table class="w-full text-xs">
+          <thead id="cabecalhoMensal" class="bg-slate-900/50 text-slate-400 uppercase tracking-wider border-b border-card"></thead>
+          <tbody id="corpoTabelaMensal" class="divide-y divide-slate-800/50">
+            <tr>
+              <td class="px-5 py-12 text-center text-slate-500">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Carregando dados...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <script>
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyFLDtaSP1yyOcO58gEFEdcYPQ_JcsUevip3SPgZTk8sMzh6_YpylQ12A-0qf2z9U7C3w/exec";
 
+    const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+    // Guarda os dados carregados para reusar entre as visualizações (evita nova chamada à API)
+    let dashboardData = null;
+    let visaoMensalAtual = 'grupo'; // 'grupo' = linhas por grupo, colunas por mês | 'mes' = invertido (pivot)
+
     // Formatação de moeda
     function formatMoney(value) {
       return 'R$ ' + value.toFixed(2).replace('.', ',');
+    }
+
+    // Célula compacta: mostra "–" para zero, deixando a grade mensal mais legível
+    function celulaMensal(value) {
+      if (!value) return '<span class="text-slate-700">–</span>';
+      return formatMoney(value);
     }
 
     // ============================================
@@ -137,6 +186,8 @@
         if (!data.sucesso) {
           throw new Error(data.mensagem);
         }
+
+        dashboardData = data;
 
         // Atualiza cards resumo
         document.getElementById('totalGeral').textContent = formatMoney(data.totalGeral);
@@ -219,6 +270,9 @@
           }
         });
 
+        // Renderiza a tabela mensal com os mesmos dados já carregados
+        renderMensal();
+
       } catch (err) {
         console.error('Erro:', err);
         document.getElementById('corpoTabela').innerHTML = `
@@ -229,8 +283,109 @@
             </td>
           </tr>
         `;
+        document.getElementById('corpoTabelaMensal').innerHTML = `
+          <tr>
+            <td class="px-5 py-12 text-center text-rose-400">
+              <i class="fas fa-exclamation-triangle mr-2"></i>
+              Erro ao carregar dados mensais
+            </td>
+          </tr>
+        `;
       }
     }
+
+    // ============================================
+    // DETALHAMENTO MENSAL (TABELA DINÂMICA)
+    // ============================================
+    function renderMensal() {
+      if (!dashboardData) return;
+
+      const filtro = (document.getElementById('filtroGrupoMensal').value || '').toLowerCase().trim();
+      const cabecalho = document.getElementById('cabecalhoMensal');
+      const corpo = document.getElementById('corpoTabelaMensal');
+
+      let gruposOrdenados = Object.keys(dashboardData.consolidado)
+        .filter(g => dashboardData.consolidado[g].total > 0)
+        .sort((a, b) => dashboardData.consolidado[b].total - dashboardData.consolidado[a].total);
+
+      if (filtro) {
+        gruposOrdenados = gruposOrdenados.filter(g => g.toLowerCase().includes(filtro));
+      }
+
+      if (gruposOrdenados.length === 0) {
+        cabecalho.innerHTML = '';
+        corpo.innerHTML = `
+          <tr>
+            <td class="px-5 py-12 text-center text-slate-500">
+              <i class="fas fa-inbox text-2xl block mb-2"></i>
+              Nenhum grupo encontrado
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      if (visaoMensalAtual === 'grupo') {
+        // LINHAS = GRUPO, COLUNAS = MÊS
+        cabecalho.innerHTML = `
+          <tr>
+            <th class="sticky-col px-5 py-3 text-left">Grupo</th>
+            ${MESES_ABREV.map(m => `<th class="px-3 py-3 text-right">${m}</th>`).join('')}
+            <th class="px-4 py-3 text-right font-bold text-white">Total</th>
+          </tr>
+        `;
+
+        corpo.innerHTML = gruposOrdenados.map(g => {
+          const v = dashboardData.consolidado[g];
+          return `
+            <tr class="hover:bg-slate-900/30 transition">
+              <td class="sticky-col px-5 py-3 font-medium text-white whitespace-nowrap">${g}</td>
+              ${v.mensal.map(val => `<td class="px-3 py-3 text-right font-mono">${celulaMensal(val)}</td>`).join('')}
+              <td class="px-4 py-3 text-right font-bold text-white font-mono">${formatMoney(v.total)}</td>
+            </tr>
+          `;
+        }).join('');
+
+      } else {
+        // PIVOT: LINHAS = MÊS, COLUNAS = GRUPO
+        cabecalho.innerHTML = `
+          <tr>
+            <th class="sticky-col px-5 py-3 text-left">Mês</th>
+            ${gruposOrdenados.map(g => `<th class="px-3 py-3 text-right whitespace-nowrap">${g}</th>`).join('')}
+            <th class="px-4 py-3 text-right font-bold text-white">Total</th>
+          </tr>
+        `;
+
+        corpo.innerHTML = MESES_ABREV.map((nomeMes, idxMes) => {
+          let totalMes = 0;
+          const celulas = gruposOrdenados.map(g => {
+            const val = dashboardData.consolidado[g].mensal[idxMes];
+            totalMes += val;
+            return `<td class="px-3 py-3 text-right font-mono">${celulaMensal(val)}</td>`;
+          }).join('');
+
+          return `
+            <tr class="hover:bg-slate-900/30 transition">
+              <td class="sticky-col px-5 py-3 font-medium text-white whitespace-nowrap">${nomeMes}</td>
+              ${celulas}
+              <td class="px-4 py-3 text-right font-bold text-white font-mono">${formatMoney(totalMes)}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    // Eventos da tabela mensal
+    document.getElementById('filtroGrupoMensal').addEventListener('input', renderMensal);
+
+    document.querySelectorAll('.view-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        visaoMensalAtual = btn.dataset.view;
+        document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active-tab'));
+        btn.classList.add('active-tab');
+        renderMensal();
+      });
+    });
 
     // ============================================
     // CARREGAR DADOS DOS GRÁFICOS

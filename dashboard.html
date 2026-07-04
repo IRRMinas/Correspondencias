@@ -133,46 +133,40 @@
           <input id="filtroGrupoMensal" type="text" placeholder="Filtrar grupo..."
             class="bg-slate-900 border border-card text-slate-200 text-xs rounded-lg px-3 py-2 w-40 focus:outline-none focus:border-indigo-500">
           <button data-view="grupo" class="view-tab active-tab text-xs font-semibold px-3 py-2 rounded-lg">
-            <i class="fas fa-table-cells mr-1"></i> Grupo × Mês
+            <i class="fas fa-layer-group mr-1"></i> Por Grupo
           </button>
           <button data-view="mes" class="view-tab text-xs font-semibold px-3 py-2 rounded-lg">
-            <i class="fas fa-repeat mr-1"></i> Mês × Grupo
+            <i class="fas fa-calendar mr-1"></i> Por Mês
+          </button>
+          <button id="btnExpandirTudo" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+            <i class="fas fa-angles-down mr-1"></i> Expandir tudo
+          </button>
+          <button id="btnRecolherTudo" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+            <i class="fas fa-angles-up mr-1"></i> Recolher tudo
           </button>
         </div>
       </div>
-      <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
-        <table class="w-full text-xs">
-          <thead id="cabecalhoMensal" class="bg-slate-900/50 text-slate-400 uppercase tracking-wider border-b border-card"></thead>
-          <tbody id="corpoTabelaMensal" class="divide-y divide-slate-800/50">
-            <tr>
-              <td class="px-5 py-12 text-center text-slate-500">
-                <i class="fas fa-spinner fa-spin mr-2"></i> Carregando dados...
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div id="containerMensal" class="divide-y divide-slate-800/50 max-h-[600px] overflow-y-auto">
+        <div class="px-5 py-12 text-center text-slate-500">
+          <i class="fas fa-spinner fa-spin mr-2"></i> Carregando dados...
+        </div>
       </div>
     </div>
   </div>
 
   <script>
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyFLDtaSP1yyOcO58gEFEdcYPQ_JcsUevip3SPgZTk8sMzh6_YpylQ12A-0qf2z9U7C3w/exec";
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwyXwjLR37-ui9eiK0109YSLncioECP-w1IApmwaNHf-5pwSlqD_lES9j_-tDG5Zyo_VQ/exec";
 
     const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
     // Guarda os dados carregados para reusar entre as visualizações (evita nova chamada à API)
     let dashboardData = null;
-    let visaoMensalAtual = 'grupo'; // 'grupo' = linhas por grupo, colunas por mês | 'mes' = invertido (pivot)
+    let visaoMensalAtual = 'grupo'; // 'grupo' = uma linha por grupo (expande em meses) | 'mes' = uma linha por mês (expande em grupos)
+    let expandidos = new Set(); // guarda quais linhas estão expandidas no momento
 
     // Formatação de moeda
     function formatMoney(value) {
       return 'R$ ' + value.toFixed(2).replace('.', ',');
-    }
-
-    // Célula compacta: mostra "–" para zero, deixando a grade mensal mais legível
-    function celulaMensal(value) {
-      if (!value) return '<span class="text-slate-700">–</span>';
-      return formatMoney(value);
     }
 
     // ============================================
@@ -283,26 +277,23 @@
             </td>
           </tr>
         `;
-        document.getElementById('corpoTabelaMensal').innerHTML = `
-          <tr>
-            <td class="px-5 py-12 text-center text-rose-400">
-              <i class="fas fa-exclamation-triangle mr-2"></i>
-              Erro ao carregar dados mensais
-            </td>
-          </tr>
+        document.getElementById('containerMensal').innerHTML = `
+          <div class="px-5 py-12 text-center text-rose-400">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            Erro ao carregar dados mensais
+          </div>
         `;
       }
     }
 
     // ============================================
-    // DETALHAMENTO MENSAL (TABELA DINÂMICA)
+    // DETALHAMENTO MENSAL (TABELA DINÂMICA EM ACORDEÃO)
     // ============================================
     function renderMensal() {
       if (!dashboardData) return;
 
       const filtro = (document.getElementById('filtroGrupoMensal').value || '').toLowerCase().trim();
-      const cabecalho = document.getElementById('cabecalhoMensal');
-      const corpo = document.getElementById('corpoTabelaMensal');
+      const container = document.getElementById('containerMensal');
 
       let gruposOrdenados = Object.keys(dashboardData.consolidado)
         .filter(g => dashboardData.consolidado[g].total > 0)
@@ -313,66 +304,112 @@
       }
 
       if (gruposOrdenados.length === 0) {
-        cabecalho.innerHTML = '';
-        corpo.innerHTML = `
-          <tr>
-            <td class="px-5 py-12 text-center text-slate-500">
-              <i class="fas fa-inbox text-2xl block mb-2"></i>
-              Nenhum grupo encontrado
-            </td>
-          </tr>
+        container.innerHTML = `
+          <div class="px-5 py-12 text-center text-slate-500">
+            <i class="fas fa-inbox text-2xl block mb-2"></i>
+            Nenhum grupo encontrado
+          </div>
         `;
         return;
       }
 
       if (visaoMensalAtual === 'grupo') {
-        // LINHAS = GRUPO, COLUNAS = MÊS
-        cabecalho.innerHTML = `
-          <tr>
-            <th class="sticky-col px-5 py-3 text-left">Grupo</th>
-            ${MESES_ABREV.map(m => `<th class="px-3 py-3 text-right">${m}</th>`).join('')}
-            <th class="px-4 py-3 text-right font-bold text-white">Total</th>
-          </tr>
-        `;
-
-        corpo.innerHTML = gruposOrdenados.map(g => {
+        // Uma linha por GRUPO. Ao expandir, mostra os meses com valor daquele grupo.
+        container.innerHTML = gruposOrdenados.map(g => {
           const v = dashboardData.consolidado[g];
+          const key = 'g-' + g;
+          const aberto = expandidos.has(key);
+          const mesesComValor = MESES_ABREV
+            .map((nome, idx) => ({ nome, valor: v.mensal[idx] }))
+            .filter(m => m.valor > 0);
+
           return `
-            <tr class="hover:bg-slate-900/30 transition">
-              <td class="sticky-col px-5 py-3 font-medium text-white whitespace-nowrap">${g}</td>
-              ${v.mensal.map(val => `<td class="px-3 py-3 text-right font-mono">${celulaMensal(val)}</td>`).join('')}
-              <td class="px-4 py-3 text-right font-bold text-white font-mono">${formatMoney(v.total)}</td>
-            </tr>
+            <div>
+              <button class="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-900/30 transition text-left" data-key="${key}">
+                <span class="flex items-center gap-2 text-white font-medium text-sm">
+                  <i class="fas fa-chevron-right text-slate-500 text-xs transition-transform ${aberto ? 'rotate-90' : ''}"></i>
+                  ${g}
+                  <span class="text-[10px] text-slate-500 font-normal">(${mesesComValor.length} ${mesesComValor.length === 1 ? 'mês' : 'meses'})</span>
+                </span>
+                <span class="font-bold text-white font-mono text-sm">${formatMoney(v.total)}</span>
+              </button>
+              <div class="${aberto ? '' : 'hidden'} px-5 pb-4 pt-1 bg-slate-950/40">
+                ${mesesComValor.length ? `
+                  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 mt-1">
+                    ${mesesComValor.map(m => `
+                      <div class="bg-slate-900/60 rounded-lg px-3 py-2 border border-slate-800/50">
+                        <p class="text-[10px] uppercase tracking-wider text-slate-500">${m.nome}</p>
+                        <p class="text-sm font-mono text-emerald-400 mt-0.5">${formatMoney(m.valor)}</p>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : `<p class="text-xs text-slate-500 mt-1">Nenhum valor lançado</p>`}
+              </div>
+            </div>
           `;
         }).join('');
 
       } else {
-        // PIVOT: LINHAS = MÊS, COLUNAS = GRUPO
-        cabecalho.innerHTML = `
-          <tr>
-            <th class="sticky-col px-5 py-3 text-left">Mês</th>
-            ${gruposOrdenados.map(g => `<th class="px-3 py-3 text-right whitespace-nowrap">${g}</th>`).join('')}
-            <th class="px-4 py-3 text-right font-bold text-white">Total</th>
-          </tr>
-        `;
-
-        corpo.innerHTML = MESES_ABREV.map((nomeMes, idxMes) => {
-          let totalMes = 0;
-          const celulas = gruposOrdenados.map(g => {
+        // Uma linha por MÊS (pivot). Ao expandir, mostra os grupos com valor naquele mês.
+        const linhasMes = MESES_ABREV.map((nomeMes, idxMes) => {
+          let total = 0;
+          const gruposComValor = [];
+          gruposOrdenados.forEach(g => {
             const val = dashboardData.consolidado[g].mensal[idxMes];
-            totalMes += val;
-            return `<td class="px-3 py-3 text-right font-mono">${celulaMensal(val)}</td>`;
-          }).join('');
+            if (val > 0) {
+              total += val;
+              gruposComValor.push({ grupo: g, valor: val });
+            }
+          });
+          return { nomeMes, idxMes, total, gruposComValor };
+        }).filter(m => m.total > 0);
 
+        if (linhasMes.length === 0) {
+          container.innerHTML = `
+            <div class="px-5 py-12 text-center text-slate-500">
+              <i class="fas fa-inbox text-2xl block mb-2"></i>
+              Nenhum valor lançado
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = linhasMes.map(m => {
+          const key = 'm-' + m.idxMes;
+          const aberto = expandidos.has(key);
           return `
-            <tr class="hover:bg-slate-900/30 transition">
-              <td class="sticky-col px-5 py-3 font-medium text-white whitespace-nowrap">${nomeMes}</td>
-              ${celulas}
-              <td class="px-4 py-3 text-right font-bold text-white font-mono">${formatMoney(totalMes)}</td>
-            </tr>
+            <div>
+              <button class="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-900/30 transition text-left" data-key="${key}">
+                <span class="flex items-center gap-2 text-white font-medium text-sm">
+                  <i class="fas fa-chevron-right text-slate-500 text-xs transition-transform ${aberto ? 'rotate-90' : ''}"></i>
+                  ${m.nomeMes}
+                  <span class="text-[10px] text-slate-500 font-normal">(${m.gruposComValor.length} ${m.gruposComValor.length === 1 ? 'grupo' : 'grupos'})</span>
+                </span>
+                <span class="font-bold text-white font-mono text-sm">${formatMoney(m.total)}</span>
+              </button>
+              <div class="${aberto ? '' : 'hidden'} px-5 pb-4 pt-1 bg-slate-950/40">
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 mt-1">
+                  ${m.gruposComValor.map(x => `
+                    <div class="bg-slate-900/60 rounded-lg px-3 py-2 border border-slate-800/50">
+                      <p class="text-[10px] uppercase tracking-wider text-slate-500">${x.grupo}</p>
+                      <p class="text-sm font-mono text-indigo-400 mt-0.5">${formatMoney(x.valor)}</p>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
           `;
         }).join('');
       }
+
+      // Liga os cliques de expandir/recolher (o innerHTML foi recriado, então religa sempre)
+      container.querySelectorAll('button[data-key]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.key;
+          if (expandidos.has(key)) expandidos.delete(key); else expandidos.add(key);
+          renderMensal();
+        });
+      });
     }
 
     // Eventos da tabela mensal
@@ -385,6 +422,23 @@
         btn.classList.add('active-tab');
         renderMensal();
       });
+    });
+
+    document.getElementById('btnExpandirTudo').addEventListener('click', () => {
+      if (!dashboardData) return;
+      if (visaoMensalAtual === 'grupo') {
+        Object.keys(dashboardData.consolidado)
+          .filter(g => dashboardData.consolidado[g].total > 0)
+          .forEach(g => expandidos.add('g-' + g));
+      } else {
+        MESES_ABREV.forEach((_, idx) => expandidos.add('m-' + idx));
+      }
+      renderMensal();
+    });
+
+    document.getElementById('btnRecolherTudo').addEventListener('click', () => {
+      expandidos.clear();
+      renderMensal();
     });
 
     // ============================================
